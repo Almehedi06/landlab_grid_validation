@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "landlab-grid-validation"
+version = "0.1.0"
+description = "Compare predicted and observed landslide or mass-wasting fields on a Landlab grid."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "landlab",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib"]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
