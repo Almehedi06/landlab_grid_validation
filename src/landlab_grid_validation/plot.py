@@ -39,7 +39,8 @@ def plot_comparison(grid, result: ComparisonResult, *, points=None, marker_size=
     ps, os_ = result.predicted_spec, result.observed_spec
     shared = None
     if ps.kind == os_.kind == "continuous" and ps.units == os_.units:
-        shared = _continuous_style(np.r_[result.predicted, result.observed], ps.units)
+        shared = _continuous_style(np.r_[result.predicted, result.observed], ps.units,
+                                   ps.sign_convention)
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5.4), constrained_layout=True)
 
@@ -116,11 +117,11 @@ def _style(spec, values, shared, class_colours=None):
             colours = colormaps["tab10"](np.arange(len(codes)) % 10)
         return (ListedColormap(colours), BoundaryNorm(edges, len(codes)), codes,
                 [names[c] for c in codes])
-    cmap, norm = shared or _continuous_style(values, spec.units)
+    cmap, norm = shared or _continuous_style(values, spec.units, spec.sign_convention)
     return cmap, norm, None, None
 
 
-def _continuous_style(values, units):
+def _continuous_style(values, units, sign_convention=None):
     from matplotlib.colors import Normalize
 
     if units == "probability":
@@ -128,12 +129,16 @@ def _continuous_style(values, units):
     finite = values[np.isfinite(values)]
     if finite.size == 0:
         return "viridis", Normalize(0.0, 1.0)
-    if finite.min() < 0 < finite.max():           # signed change: red loss, blue gain
+    if finite.min() < 0 < finite.max():           # signed change: loss red, gain blue
         lim = _symmetric_limit(finite)
-        return "RdBu", Normalize(-lim, lim)
-    low, high = np.percentile(finite, [2, 98])
+        cmap = "RdBu_r" if sign_convention == "positive_is_loss" else "RdBu"
+        return cmap, Normalize(-lim, lim)
+    nonzero = finite[finite != 0]                 # sparse fields: scale on the non-zero cells
+    base = nonzero if nonzero.size else finite
+    low = 0.0 if finite.min() >= 0 else float(np.percentile(base, 2))
+    high = float(np.percentile(base, 98))
     if high <= low:
-        low, high = finite.min(), max(finite.max(), finite.min() + 1.0)
+        high = low + 1.0
     return "viridis", Normalize(low, high)
 
 

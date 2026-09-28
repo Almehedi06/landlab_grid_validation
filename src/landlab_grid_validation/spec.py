@@ -19,6 +19,9 @@ class FieldSpec:
     ``nodata`` is one exact value treated as missing. ``valid_range`` (low, high)
     marks everything outside it as missing too, and the count is reported: use it
     for flag values that drift, such as 9999.137 in a model output.
+
+    ``sign_convention="positive_is_loss"`` marks a signed field where positive
+    means loss (erosion depth); maps then keep loss red and gain blue.
     """
 
     name: str
@@ -30,7 +33,7 @@ class FieldSpec:
     classes: Mapping[int | float | str, str] | None = None
     nodata: int | float | None = None
     valid_range: tuple[float, float] | None = None
-    sign_convention: Literal["positive_is_gain", "negative_is_loss"] | None = None
+    sign_convention: Literal["positive_is_gain", "negative_is_loss", "positive_is_loss"] | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in ("continuous", "binary", "categorical"):

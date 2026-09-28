@@ -88,6 +88,16 @@ def test_text_classes_are_burned_through_codes():
     assert burned[0] == 1 and (burned.reshape(3, 3)[2] == 2).all()
 
 
+def test_colour_scales_follow_sign_and_ignore_zeros():
+    from landlab_grid_validation.plot import _continuous_style
+    depth = np.r_[np.zeros(95), np.linspace(0.5, 1.5, 5)]          # sparse erosion depth
+    cmap, norm = _continuous_style(depth, "m")
+    assert norm.vmin == 0.0 and norm.vmax > 1.4
+    signed = np.r_[-2.0, 0.0, 3.0]
+    assert _continuous_style(signed, "m")[0] == "RdBu"
+    assert _continuous_style(signed, "m", "positive_is_loss")[0] == "RdBu_r"
+
+
 @pytest.mark.parametrize("kind", ["probability", "change", "classes"])
 def test_plot_comparison_draws_three_maps(kind):
     matplotlib = pytest.importorskip("matplotlib")
