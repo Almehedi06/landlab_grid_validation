@@ -7,14 +7,25 @@ from pathlib import Path
 import numpy as np
 
 
-def write_field_ascii(grid, path: str | Path, field, *, name: str = "field", clobber: bool = True):
-    """Write a node field to ESRI ASCII using Landlab's writer.
+def write_field_ascii(grid, path: str | Path, field, *, name: str | None = None,
+                      clobber: bool = True) -> Path:
+    """Write a node field, or node-length values, to ESRI ASCII with Landlab's writer.
 
-    This is intentionally a thin wrapper around Landlab I/O so ASC stays an
-    exchange format rather than the internal representation.
+    The values are written through a scratch copy of the grid, so the caller's
+    grid is never modified and an existing field of the same name is never
+    written by mistake. NaN is written as -9999, the NODATA_VALUE Landlab puts
+    in the header.
     """
+    from landlab import RasterModelGrid
+    from landlab.io import esri_ascii
+
     path = Path(path)
-    values = np.asarray(grid.at_node[field] if isinstance(field, str) else field)
+    if isinstance(field, str):
+        values = np.asarray(grid.at_node[field], dtype=float)
+        name = name or field
+    else:
+        values = np.asarray(field, dtype=float).reshape(-1)
+        name = name or "field"
     if values.size != grid.number_of_nodes:
         raise ValueError(
             f"field has {values.size} values but grid has {grid.number_of_nodes} nodes"
@@ -22,16 +33,10 @@ def write_field_ascii(grid, path: str | Path, field, *, name: str = "field", clo
     if path.exists() and not clobber:
         raise FileExistsError(path)
 
-    if name not in grid.at_node:
-        grid.add_field(name, values, at="node", clobber=True)
-
-    try:
-        from landlab.io.esri_ascii import dump
-
-        with path.open("w", encoding="utf-8") as stream:
-            dump(grid, stream=stream, at="node", name=name)
-    except ImportError:  # pragma: no cover - older Landlab versions
-        from landlab.io import write_esri_ascii
-
-        write_esri_ascii(str(path), grid, names=[name], clobber=clobber)
+    scratch = RasterModelGrid(
+        grid.shape, xy_spacing=(grid.dx, grid.dy), xy_of_lower_left=grid.xy_of_lower_left
+    )
+    scratch.add_field(name, np.where(np.isfinite(values), values, -9999.0), at="node")
+    with path.open("w", encoding="utf-8") as stream:
+        esri_ascii.dump(scratch, stream=stream, at="node", name=name)
     return path

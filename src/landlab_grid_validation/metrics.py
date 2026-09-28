@@ -92,65 +92,71 @@ def binary_metrics(predicted: np.ndarray, observed: np.ndarray) -> dict[str, flo
     return out
 
 
+def score_vs_binary_metrics(
+    scores: np.ndarray,
+    observed_binary: np.ndarray,
+    threshold: float,
+    *,
+    probability: bool,
+) -> dict[str, float]:
+    """Continuous scores against yes/no observations.
+
+    Scores must increase towards "yes" (for erosion, pass depth or -dz). The
+    confusion counts use ``scores >= threshold``; AUC and average precision use
+    the ranking and need no threshold. The Brier score is added for probabilities.
+    """
+    obs = observed_binary.astype(bool)
+    out = binary_metrics(scores >= threshold, obs)
+    out["threshold"] = float(threshold)
+    out["roc_auc"] = roc_auc(scores, obs)
+    out["average_precision"] = average_precision(scores, obs)
+    if probability:
+        out["brier_score"] = float(np.mean((scores - obs.astype(float)) ** 2))
+    return out
+
+
 def probability_metrics(
     predicted_probability: np.ndarray,
     observed_binary: np.ndarray,
     threshold: float,
 ) -> dict[str, float]:
-    """Metrics for continuous probability against binary observations."""
-    prob = np.clip(predicted_probability.astype(float), 0.0, 1.0)
-    obs = observed_binary.astype(bool)
-    binary_pred = prob >= threshold
-    out = binary_metrics(binary_pred, obs)
-    out.update(
-        {
-            "threshold": float(threshold),
-            "brier_score": float(np.mean((prob - obs.astype(float)) ** 2)),
-            "roc_auc": roc_auc(prob, obs),
-            "average_precision": average_precision(prob, obs),
-        }
+    """Probability against yes/no observations (kept for backward compatibility)."""
+    return score_vs_binary_metrics(
+        predicted_probability, observed_binary, threshold, probability=True
     )
-    return out
 
 
 def roc_auc(scores: np.ndarray, observed_binary: np.ndarray) -> float:
-    """ROC AUC using the Mann-Whitney rank formulation with tie handling."""
+    """ROC AUC by the Mann-Whitney rank formula; tied scores share their mean rank."""
     y = observed_binary.astype(bool)
     n_pos = int(np.sum(y))
     n_neg = int(np.sum(~y))
     if n_pos == 0 or n_neg == 0:
         return np.nan
-
-    order = np.argsort(scores)
-    sorted_scores = scores[order]
-    ranks = np.empty(scores.size, dtype=float)
-
-    i = 0
-    while i < scores.size:
-        j = i + 1
-        while j < scores.size and sorted_scores[j] == sorted_scores[i]:
-            j += 1
-        # Ranks are 1-based; ties get their average rank.
-        ranks[order[i:j]] = (i + 1 + j) / 2.0
-        i = j
-
-    rank_sum_pos = float(np.sum(ranks[y]))
-    return float((rank_sum_pos - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg))
+    _, inverse, counts = np.unique(scores, return_inverse=True, return_counts=True)
+    ends = np.cumsum(counts)
+    ranks = (ends - (counts - 1) / 2.0)[inverse.reshape(-1)]
+    return float((np.sum(ranks[y]) - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg))
 
 
 def average_precision(scores: np.ndarray, observed_binary: np.ndarray) -> float:
-    """Average precision for binary observations and continuous scores."""
+    """Step-wise average precision over distinct score thresholds.
+
+    Tied scores form one step, so the result does not depend on how ties are
+    ordered (the same definition as scikit-learn). This matters for sparse
+    model fields, where most cells share the value 0.
+    """
     y = observed_binary.astype(bool)
     n_pos = int(np.sum(y))
     if n_pos == 0:
         return np.nan
-
-    order = np.argsort(-scores)
-    y_sorted = y[order]
-    tp = np.cumsum(y_sorted)
-    fp = np.cumsum(~y_sorted)
-    precision = tp / (tp + fp)
-    return float(np.sum(precision[y_sorted]) / n_pos)
+    order = np.argsort(-scores, kind="mergesort")
+    s, ys = scores[order], y[order]
+    last = np.r_[np.flatnonzero(np.diff(s)), s.size - 1]   # last index of each tie group
+    tp = np.cumsum(ys)[last]
+    precision = tp / (last + 1)
+    recall = tp / n_pos
+    return float(np.sum(np.diff(np.r_[0.0, recall]) * precision))
 
 
 def categorical_metrics(
@@ -160,33 +166,23 @@ def categorical_metrics(
 ) -> dict[str, Any]:
     """Confusion matrix and per-class scores for categorical fields."""
     if labels is None:
-        labels = sorted(set(predicted.tolist()) | set(observed.tolist()))
+        labels = sorted(set(np.unique(predicted).tolist()) | set(np.unique(observed).tolist()))
 
-    label_keys = [_label_key(label) for label in labels]
+    codes = [float(label) for label in labels]
+    keys = [_label_key(label) for label in labels]
+    counts = np.array(
+        [[int(np.sum((observed == co) & (predicted == cp))) for cp in codes] for co in codes]
+    )
     matrix = {
-        obs_key: {pred_key: 0 for pred_key in label_keys}
-        for obs_key in label_keys
+        obs_key: {pred_key: int(counts[i, j]) for j, pred_key in enumerate(keys)}
+        for i, obs_key in enumerate(keys)
     }
-    for pred, obs in zip(predicted, observed, strict=True):
-        matrix[_label_key(obs)][_label_key(pred)] += 1
 
     per_class: dict[str, dict[str, float]] = {}
-    correct = 0
-    for label, key in zip(labels, label_keys, strict=True):
-        tp = matrix[key][key]
-        fp = sum(
-            matrix[other_key][key]
-            for other, other_key in zip(labels, label_keys, strict=True)
-            if other != label
-        )
-        fn = sum(
-            matrix[key][other_key]
-            for other, other_key in zip(labels, label_keys, strict=True)
-            if other != label
-        )
-        support = sum(matrix[key].values())
-        correct += tp
-
+    for i, key in enumerate(keys):
+        tp = counts[i, i]
+        fp = counts[:, i].sum() - tp
+        fn = counts[i, :].sum() - tp
         precision = tp / (tp + fp) if (tp + fp) else np.nan
         recall = tp / (tp + fn) if (tp + fn) else np.nan
         f1 = (
@@ -198,14 +194,14 @@ def categorical_metrics(
             "precision": float(precision),
             "recall": float(recall),
             "f1": float(f1),
-            "support": int(support),
+            "support": int(counts[i, :].sum()),
         }
 
     n = int(predicted.size)
     return {
         "n": n,
-        "overall_accuracy": float(correct / n) if n else np.nan,
-        "labels": label_keys,
+        "overall_accuracy": float(np.trace(counts) / n) if n else np.nan,
+        "labels": keys,
         "confusion_matrix": matrix,
         "per_class": per_class,
     }
@@ -219,7 +215,7 @@ def continuous_by_category(
     out: dict[str, Any] = {"n": int(continuous.size), "by_class": {}}
     for cls in sorted(set(categories.tolist())):
         vals = continuous[categories == cls]
-        out["by_class"][str(cls)] = {
+        out["by_class"][_label_key(cls)] = {
             "n": int(vals.size),
             "mean": float(np.mean(vals)),
             "median": float(np.median(vals)),
