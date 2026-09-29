@@ -80,6 +80,14 @@ def raster_to_node_field(grid, crs, path, *, band=1, resampling=None, raster_crs
             if nd is not None:
                 arr[arr == nd] = np.nan
         else:
+            if _half_cell_apart(src.transform, src.shape, dst_transform, shape,
+                                _same_crs(src_crs, dst_crs)):
+                raise ValueError(
+                    f"{path} sits exactly half a cell from this grid's nodes. The grid was "
+                    "probably built with landlab.io.esri_ascii.load from a file with "
+                    "XLLCORNER, which puts nodes on cell corners; build it with "
+                    "grid_from_raster instead"
+                )
             if resampling not in RESAMPLING:
                 raise ValueError(
                     f"{path} is not on this grid, so it must be resampled: pass "
@@ -172,6 +180,17 @@ def _grow(mask: np.ndarray, k: int) -> np.ndarray:
         for dc in range(2 * k + 1):
             out |= padded[dr:dr + rows, dc:dc + cols]
     return out
+
+
+def _half_cell_apart(src_transform, src_shape, dst_transform, dst_shape, same_crs) -> bool:
+    """True when two grids of one size and resolution are offset by exactly half a cell."""
+    a, b = src_transform, dst_transform
+    if not same_crs or src_shape != dst_shape:
+        return False
+    if not (np.isclose(a.a, b.a) and np.isclose(a.e, b.e)):
+        return False
+    return bool(np.isclose(abs(a.c - b.c), abs(a.a) / 2)
+                and np.isclose(abs(a.f - b.f), abs(a.e) / 2))
 
 
 def _same_crs(a, b) -> bool:

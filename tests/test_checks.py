@@ -77,6 +77,20 @@ def test_mask_with_nan_excludes_cells():
     assert result.metrics["n"] == 3
 
 
+def test_tolerance_forgives_a_one_cell_offset():
+    grid = RasterModelGrid((5, 5))
+    predicted = np.zeros((5, 5)); predicted[2, 2] = 1
+    observed = np.zeros((5, 5)); observed[2, 3] = 1
+    result = compare_fields_on_grid(grid, predicted, observed, YESNO, YESNO, origin="lower",
+                                    tolerance_cells=1)
+    assert result.metrics["recall"] == 0.0
+    assert result.metrics["recall_within_tolerance"] == 1.0
+    assert result.metrics["precision_within_tolerance"] == 1.0
+    with pytest.raises(ValueError, match="yes/no"):
+        dz = FieldSpec(name="dz", kind="continuous", units="m")
+        compare_fields_on_grid(grid, predicted, observed, dz, dz, origin="lower", tolerance_cells=1)
+
+
 def test_auc_ties_share_their_mean_rank():
     # positive at 1 ties one negative (half credit) and beats the other: (0.5 + 1) / 2
     assert roc_auc(np.array([1.0, 1.0, 0.0]), np.array([1, 0, 0])) == pytest.approx(0.75)

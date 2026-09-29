@@ -111,6 +111,7 @@ def compare_fields_on_grid(
     mask=None,
     threshold: float | None = None,
     origin: str | None = None,
+    tolerance_cells: int = 0,
     plot: bool = False,
 ) -> ComparisonResult:
     """Compare predicted and observed mapped fields on one Landlab grid.
@@ -123,6 +124,11 @@ def compare_fields_on_grid(
     Values are checked against each FieldSpec before any metric is computed:
     probabilities must lie in [0, 1], binary fields may hold only 0 and 1, and
     categorical fields only their declared class codes.
+
+    ``tolerance_cells`` (yes/no comparisons only) adds recall and precision that
+    forgive offsets of up to that many cells: an observed yes counts as found if a
+    predicted yes lies within the (2k+1) x (2k+1) block around it, and the other
+    way round for precision. The exact-cell metrics are always kept.
     """
     pred, n_pred = _prepare(grid, predicted, predicted_spec, origin)
     obs, n_obs = _prepare(grid, observed, observed_spec, origin)
@@ -163,12 +169,36 @@ def compare_fields_on_grid(
         masked_out_of_range={"predicted": n_pred, "observed": n_obs},
     )
 
+    if tolerance_cells:
+        if result.predicted_yes is None:
+            raise ValueError("tolerance_cells applies to comparisons that reduce to yes/no")
+        result.metrics.update(
+            _within_tolerance(grid, result.predicted_yes, result.observed_yes, int(tolerance_cells))
+        )
+
     if plot:
         from .plot import plot_comparison
 
         result.figure = plot_comparison(grid, result)
 
     return result
+
+
+def _within_tolerance(grid, predicted_yes, observed_yes, k: int) -> dict[str, float]:
+    from .readers import _grow
+
+    shape = (grid.number_of_node_rows, grid.number_of_node_columns)
+    p = (predicted_yes == 1).reshape(shape)          # NaN outside the compared cells -> False
+    o = (observed_yes == 1).reshape(shape)
+
+    def div(num, den):
+        return float(num / den) if den else np.nan
+
+    return {
+        "tolerance_cells": k,
+        "recall_within_tolerance": div(np.sum(o & _grow(p, k)), np.sum(o)),
+        "precision_within_tolerance": div(np.sum(p & _grow(o, k)), np.sum(p)),
+    }
 
 
 def _prepare(grid, values, spec: FieldSpec, origin) -> tuple[np.ndarray, int]:

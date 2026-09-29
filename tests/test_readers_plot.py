@@ -63,6 +63,19 @@ def test_raster_without_crs_must_be_given_one(tmp_path):
     assert crs.to_epsg() == 32610
 
 
+def test_grid_built_on_cell_corners_is_refused(tmp_path):
+    from landlab.io import esri_ascii
+    path = tmp_path / "field.asc"
+    path.write_text("ncols 3\nnrows 2\nxllcorner 500000\nyllcorner 5000000\ncellsize 10\n"
+                    "NODATA_value -9999\n1 2 3\n4 5 6\n")
+    with open(path) as f:
+        corner_grid = esri_ascii.load(f, name="field")        # nodes on cell corners
+    with pytest.raises(ValueError, match="half a cell"):
+        raster_to_node_field(corner_grid, CRS, path, raster_crs=CRS, resampling="nearest")
+    grid, crs = grid_from_raster(path, crs=CRS)                # nodes on cell centres
+    assert list(raster_to_node_field(grid, crs, path, raster_crs=CRS)) == [4.0, 5.0, 6.0, 1.0, 2.0, 3.0]
+
+
 def test_points_with_a_one_cell_tolerance_burn_3x3_blocks():
     grid = RasterModelGrid((5, 5), xy_spacing=10.0, xy_of_lower_left=(5.0, 5.0))
     pts = gpd.GeoDataFrame(geometry=[Point(25, 25)], crs=CRS)
