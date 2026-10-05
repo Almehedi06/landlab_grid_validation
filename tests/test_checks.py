@@ -79,8 +79,10 @@ def test_mask_with_nan_excludes_cells():
 
 def test_tolerance_forgives_a_one_cell_offset():
     grid = RasterModelGrid((5, 5))
-    predicted = np.zeros((5, 5)); predicted[2, 2] = 1
-    observed = np.zeros((5, 5)); observed[2, 3] = 1
+    predicted = np.zeros((5, 5))
+    predicted[2, 2] = 1
+    observed = np.zeros((5, 5))
+    observed[2, 3] = 1
     result = compare_fields_on_grid(grid, predicted, observed, YESNO, YESNO, origin="lower",
                                     tolerance_cells=1)
     assert result.metrics["recall"] == 0.0

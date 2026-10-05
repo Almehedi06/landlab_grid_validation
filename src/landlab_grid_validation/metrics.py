@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from statistics import NormalDist
 from typing import Any
 
 import numpy as np
+
+AUC_CONFIDENCE_LEVEL = 0.95
 
 
 @dataclass(frozen=True)
@@ -109,6 +112,8 @@ def score_vs_binary_metrics(
     out = binary_metrics(scores >= threshold, obs)
     out["threshold"] = float(threshold)
     out["roc_auc"] = roc_auc(scores, obs)
+    out["roc_auc_ci_low"], out["roc_auc_ci_high"] = roc_auc_ci(scores, obs)
+    out["roc_auc_ci_level"] = AUC_CONFIDENCE_LEVEL
     out["average_precision"] = average_precision(scores, obs)
     if probability:
         out["brier_score"] = float(np.mean((scores - obs.astype(float)) ** 2))
@@ -126,6 +131,13 @@ def probability_metrics(
     )
 
 
+def midranks(values: np.ndarray) -> np.ndarray:
+    """1-based ranks of ``values``; tied values share their mean rank."""
+    _, inverse, counts = np.unique(values, return_inverse=True, return_counts=True)
+    ends = np.cumsum(counts)
+    return (ends - (counts - 1) / 2.0)[inverse.reshape(-1)]
+
+
 def roc_auc(scores: np.ndarray, observed_binary: np.ndarray) -> float:
     """ROC AUC by the Mann-Whitney rank formula; tied scores share their mean rank."""
     y = observed_binary.astype(bool)
@@ -133,10 +145,64 @@ def roc_auc(scores: np.ndarray, observed_binary: np.ndarray) -> float:
     n_neg = int(np.sum(~y))
     if n_pos == 0 or n_neg == 0:
         return np.nan
-    _, inverse, counts = np.unique(scores, return_inverse=True, return_counts=True)
-    ends = np.cumsum(counts)
-    ranks = (ends - (counts - 1) / 2.0)[inverse.reshape(-1)]
+    ranks = midranks(scores)
     return float((np.sum(ranks[y]) - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg))
+
+
+def roc_auc_variance(scores: np.ndarray, observed_binary: np.ndarray) -> float:
+    """Variance of the AUC by the DeLong method, with midranks for tied scores.
+
+    DeLong et al. (1988), computed the fast way of Sun and Xu (2014): the AUC is
+    the mean of per-observation placement values, so its variance follows from
+    the spread of those values. Exact and deterministic, unlike a bootstrap, and
+    it costs one sort rather than a thousand.
+    """
+    y = observed_binary.astype(bool)
+    positives, negatives = scores[y], scores[~y]
+    n_pos, n_neg = positives.size, negatives.size
+    if n_pos < 2 or n_neg < 2:
+        return np.nan  # a variance needs at least two of each
+
+    combined = midranks(scores)
+    # Placement of each observation among the other class, ties counted as a half.
+    v_pos = (combined[y] - midranks(positives)) / n_neg
+    v_neg = 1.0 - (combined[~y] - midranks(negatives)) / n_pos
+    return float(np.var(v_pos, ddof=1) / n_pos + np.var(v_neg, ddof=1) / n_neg)
+
+
+def roc_auc_ci(
+    scores: np.ndarray,
+    observed_binary: np.ndarray,
+    level: float = AUC_CONFIDENCE_LEVEL,
+) -> tuple[float, float]:
+    """Confidence interval for the AUC, through the logit so it stays inside [0, 1].
+
+    With few observed yes cells the AUC is uncertain, and an interval is the
+    honest way to report it: 0.66 from 89 points may not differ from 0.57.
+    Returns (nan, nan) when the variance is undefined, such as one class only.
+
+    The interval assumes the compared cells are independent. Mapped points are
+    usually clustered, and ``tolerance_cells`` grows each one into a block, so
+    neighbouring cells repeat the same evidence. The interval is then narrower
+    than the truth: treat it as a lower bound on the uncertainty.
+    """
+    auc = roc_auc(scores, observed_binary)
+    variance = roc_auc_variance(scores, observed_binary)
+    # A perfect separation, or scores that are all tied, gives DeLong a variance of
+    # zero. Reporting a zero-width interval there would claim a certainty the data
+    # do not support, so call it undefined instead.
+    if not np.isfinite(auc) or not np.isfinite(variance) or variance <= 0:
+        return (np.nan, np.nan)
+
+    z = NormalDist().inv_cdf(0.5 + level / 2.0)
+    standard_error = float(np.sqrt(variance))
+    if 0.0 < auc < 1.0:
+        centre = np.log(auc / (1.0 - auc))
+        half_width = z * standard_error / (auc * (1.0 - auc))
+        low, high = (1.0 / (1.0 + np.exp(-(centre + sign * half_width))) for sign in (-1, 1))
+    else:  # an AUC of exactly 0 or 1 has no logit; fall back to a plain interval
+        low, high = auc - z * standard_error, auc + z * standard_error
+    return (float(np.clip(low, 0.0, 1.0)), float(np.clip(high, 0.0, 1.0)))
 
 
 def average_precision(scores: np.ndarray, observed_binary: np.ndarray) -> float:

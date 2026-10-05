@@ -163,7 +163,7 @@ def vector_to_node_field(grid, crs, features, *, value=1.0, codes=None, toleranc
             raise ValueError("value must differ from background")
         vals = np.full(len(gdf), float(value))
 
-    burned = rasterize(zip(gdf.geometry, vals), out_shape=shape, transform=transform,
+    burned = rasterize(zip(gdf.geometry, vals, strict=True), out_shape=shape, transform=transform,
                        fill=background, all_touched=all_touched, dtype="float64")
     if tolerance_cells:
         grown = _grow(burned != background, int(tolerance_cells))

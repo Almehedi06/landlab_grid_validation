@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: landlab-grid-validation
+abstract: Compare modelled and observed landslide or mass-wasting fields on a Landlab grid, and map where they agree.
+type: software
+authors:
+  - family-names: Al Mehedi
+    given-names: Abdullah
+version: 1.0.0
+date-released: 2026-10-05
+license: MIT
+repository-code: https://github.com/Almehedi06/landlab_grid_validation
+keywords:
+  - Landlab
+  - landslide
+  - debris flow
+  - model validation
+  - geospatial

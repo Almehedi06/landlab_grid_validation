@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "landlab-grid-validation"
-version = "0.3.0"
+dynamic = ["version"]
 description = "Compare predicted and observed landslide or mass-wasting fields on a Landlab grid."
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
   "numpy",
@@ -18,5 +19,24 @@ io = ["rasterio", "geopandas"]
 plot = ["matplotlib"]
 test = ["pytest", "rasterio", "geopandas", "matplotlib"]
 
+[tool.setuptools.dynamic]
+version = {attr = "landlab_grid_validation.__version__"}
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+# Notebooks are examples; their style is their own.
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests add src/ to sys.path before importing the package.
+"tests/*" = ["E402"]

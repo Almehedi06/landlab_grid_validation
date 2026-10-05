@@ -10,10 +10,14 @@ raster / shapefile / array  ->  node field on the grid  ->  FieldSpec  ->  compa
 ## Install
 
 ```bash
-pip install -e ".[io,plot]"        # io: rasterio + geopandas readers; plot: matplotlib
+pip install "landlab-grid-validation[io,plot] @ git+https://github.com/Almehedi06/landlab_grid_validation"
 ```
 
-The core (`FieldSpec`, `compare_fields_on_grid`) needs only numpy and Landlab.
+Or from a clone, for development: `pip install -e ".[io,plot,test]"`.
+
+Python 3.10 to 3.13. The core (`FieldSpec`, `compare_fields_on_grid`) needs only
+numpy and Landlab; `io` adds the rasterio and geopandas readers, `plot` adds
+matplotlib.
 
 ## Quick start
 
@@ -59,7 +63,7 @@ depth), `binary` (yes/no) or `categorical` (e.g. stable / erosion / deposition).
 
 | predicted vs observed | metrics | third map |
 |---|---|---|
-| continuous vs yes/no | confusion counts at `threshold`, AUC, average precision, Brier (probabilities) | hit / miss / false alarm / correct no |
+| continuous vs yes/no | confusion counts at `threshold`, AUC with a confidence interval, average precision, Brier (probabilities) | hit / miss / false alarm / correct no |
 | yes/no vs yes/no | confusion counts, recall, precision, CSI, F1 | hit / miss / false alarm / correct no |
 | continuous vs continuous | bias, MAE, RMSE, Pearson r | predicted − observed |
 | classes vs classes | confusion matrix, per-class recall and precision | class agreement |
@@ -84,9 +88,23 @@ forgive offsets of up to k cells, for yes/no comparisons.
   `FieldSpec.valid_range` and counted in `result.masked_out_of_range`.
 - **Resampling is always your choice**, and features outside the grid are
   reported, never dropped silently.
+- **The AUC comes with a confidence interval** (`roc_auc_ci_low` and
+  `roc_auc_ci_high`, by the DeLong method). With few observed points an AUC of
+  0.66 may not differ from 0.57, and the interval says so. A perfect separation
+  reports `nan` rather than a zero-width interval. The interval assumes
+  independent cells, so with clustered points or `tolerance_cells` it is a
+  lower bound on the real uncertainty.
 
 ## Tests
 
 ```bash
 python -m pytest -q
 ```
+
+They run from a clone, installed or not. CI runs them on Linux, macOS and
+Windows for Python 3.10 to 3.13, with `ruff check .` for lint.
+
+## Citation and license
+
+Cite with the metadata in `CITATION.cff`. MIT license, see `LICENSE`.
+Changes are recorded in `CHANGELOG.md`.

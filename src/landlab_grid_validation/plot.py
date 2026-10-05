@@ -108,8 +108,9 @@ def _style(spec, values, shared, class_colours=None):
     if spec.kind == "categorical":
         names = {float(k): v for k, v in spec.classes.items()}
         codes = sorted(names)
-        edges = ([codes[0] - 0.5] + [(a + b) / 2 for a, b in zip(codes, codes[1:])]
-                 + [codes[-1] + 0.5])
+        # Class boundaries sit halfway between codes, so the pairs are one shorter.
+        midpoints = [(a + b) / 2 for a, b in zip(codes, codes[1:], strict=False)]
+        edges = [codes[0] - 0.5] + midpoints + [codes[-1] + 0.5]
         if class_colours:
             given = {float(k): v for k, v in class_colours.items()}
             colours = [given[c] for c in codes]
