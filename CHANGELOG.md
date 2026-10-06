@@ -12,6 +12,8 @@ the readers, and `plot_comparison`.
   A perfect separation or all-tied scores report `nan` rather than a
   zero-width interval that would claim false certainty.
 - `roc_auc` and `roc_auc_ci` are importable from the package directly.
+- `examples/tutorial.ipynb`: a run-anywhere tutorial that makes its own example
+  data, with every output saved. Built by `examples/build_tutorial.py`.
 - MIT license, `CITATION.cff` and this changelog.
 - CI on Linux, macOS and Windows for Python 3.10 to 3.13, plus `ruff`.
 

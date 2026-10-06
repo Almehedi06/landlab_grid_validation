@@ -18,6 +18,7 @@ dependencies = [
 io = ["rasterio", "geopandas"]
 plot = ["matplotlib"]
 test = ["pytest", "rasterio", "geopandas", "matplotlib"]
+notebook = ["jupyterlab", "ipykernel", "pandas"]
 
 [tool.setuptools.dynamic]
 version = {attr = "landlab_grid_validation.__version__"}

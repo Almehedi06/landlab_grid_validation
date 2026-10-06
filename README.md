@@ -19,6 +19,24 @@ Python 3.10 to 3.13. The core (`FieldSpec`, `compare_fields_on_grid`) needs only
 numpy and Landlab; `io` adds the rasterio and geopandas readers, `plot` adds
 matplotlib.
 
+## Tutorial
+
+`examples/tutorial.ipynb` teaches the whole workflow in eight short steps. It
+builds its own small dataset, so it runs before you have any data of your own.
+From a fresh clone, one command sets everything up and opens it:
+
+```bash
+./run_tutorial.sh
+```
+
+It creates `.venv` if needed, installs the package and JupyterLab into it, and
+opens the notebook in your browser. Nothing else to configure.
+
+In an editor instead, install with `pip install -e ".[io,plot,notebook]"` and
+pick that `.venv` as the notebook kernel. In VS Code the environment is only
+found when this folder is the one you opened, so open the repository folder
+itself rather than a parent.
+
 ## Quick start
 
 `examples/validate_pioneer.ipynb` is a complete run for the Pioneer Fire at
