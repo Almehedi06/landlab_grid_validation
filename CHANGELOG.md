@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `examples/validate_pioneer.ipynb` is shorter: no setup cell, a plain AUC
+  table, and one line of reading after each result. It reads `probability_fields/`
+  and `obs_data/` in the Pioneer data folder.
+- Removed the tutorial notebook, `examples/build_tutorial.py` and
+  `run_tutorial.sh`. The Pioneer notebook is the worked example.
+- `examples/export_layers.ipynb`: writes the validation layers, the channel and
+  slope masks and the G 5-150 absence points to files. Kept apart so running
+  the validation notebook never overwrites data.
+- README: one "Getting started" block (clone, `.venv`, install, open the
+  notebook) and where the Pioneer data come from.
+
 ## 1.0.0 - 2026-10-05
 
 First stable release. The API is settled: `FieldSpec`, `compare_fields_on_grid`,

@@ -7,42 +7,46 @@ grid, whatever format the observations come in, and map where they agree.
 raster / shapefile / array  ->  node field on the grid  ->  FieldSpec  ->  compare  ->  plot
 ```
 
-## Install
+## Getting started
 
 ```bash
-pip install "landlab-grid-validation[io,plot] @ git+https://github.com/Almehedi06/landlab_grid_validation"
+git clone https://github.com/Almehedi06/landlab_grid_validation
+cd landlab_grid_validation
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -e ".[io,plot,notebook]"
 ```
 
-Or from a clone, for development: `pip install -e ".[io,plot,test]"`.
+If `python -m venv` fails on Ubuntu, run `sudo apt install python3-venv` first, or
+use a conda Python.
 
+Open `examples/validate_pioneer.ipynb`, choose the `.venv` kernel, set `PIONEER`
+in the first cell to your data folder, and Run All. It scores the Landlab layers
+for the Pioneer Fire at Stehekin against 89 mapped debris-flow initiation points
+and the dDEM, and its results are saved in it. In VS Code, open the repository
+folder itself so the `.venv` kernel is listed.
+
+`examples/export_layers.ipynb` runs that notebook, then writes its layers to files
+for QGIS: the yes/no and dDEM fields, hit/miss maps, the channel and slope masks,
+and absence points away from ridges and channels. `validate_pioneer.ipynb` itself
+writes nothing.
+
+`examples/landslide_notebook.ipynb` is a shorter example: one 30 m landslide
+probability field against the mapped landslide points.
+
+The Pioneer data are not in the repository. The initiation points are in the USGS
+data release (doi:10.5066/P1GNNSZU); the Landlab layers and the dDEM are available
+on request.
+
+To use the package in your own code without cloning:
+`pip install "landlab-grid-validation[io,plot] @ git+https://github.com/Almehedi06/landlab_grid_validation"`.
 Python 3.10 to 3.13. The core (`FieldSpec`, `compare_fields_on_grid`) needs only
 numpy and Landlab; `io` adds the rasterio and geopandas readers, `plot` adds
 matplotlib.
 
-## Tutorial
+## Using it in your own code
 
-`examples/tutorial.ipynb` teaches the whole workflow in eight short steps. It
-builds its own small dataset, so it runs before you have any data of your own.
-From a fresh clone, one command sets everything up and opens it:
-
-```bash
-./run_tutorial.sh
-```
-
-It creates `.venv` if needed, installs the package and JupyterLab into it, and
-opens the notebook in your browser. Nothing else to configure.
-
-In an editor instead, install with `pip install -e ".[io,plot,notebook]"` and
-pick that `.venv` as the notebook kernel. In VS Code the environment is only
-found when this folder is the one you opened, so open the repository folder
-itself rather than a parent.
-
-## Quick start
-
-`examples/validate_pioneer.ipynb` is a complete run for the Pioneer Fire at
-Stehekin, with its results saved in it: Landlab probability layers against 89
-mapped initiation points, and Landlab MWR against the dDEM. Its data are shared
-separately; point `DATA` at your copy.
+The notebook's calls, in short:
 
 ```python
 from landlab_grid_validation import (FieldSpec, compare_fields_on_grid, grid_from_raster,
@@ -116,6 +120,7 @@ forgive offsets of up to k cells, for yes/no comparisons.
 ## Tests
 
 ```bash
+pip install -e ".[test]"
 python -m pytest -q
 ```
 
