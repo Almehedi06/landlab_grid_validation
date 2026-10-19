@@ -40,6 +40,16 @@ class ComparisonResult:
     masked_out_of_range: dict[str, int] = field(default_factory=dict)
     figure: Any = None
 
+    def agreement(self) -> np.ndarray | None:
+        """Node-length map of 0 correct no, 1 false alarm, 2 miss, 3 hit.
+
+        NaN outside the compared cells; None when the comparison does not reduce
+        to yes/no (two continuous fields, or two categorical ones).
+        """
+        if self.predicted_yes is None:
+            return None
+        return self.predicted_yes + 2 * self.observed_yes   # NaN stays NaN
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "comparison_type": self.comparison_type,

@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - 2026-10-18
+
+### Added
+
+- `write_field_geotiff(grid, crs, path, field)`: any node field to a GeoTIFF on
+  the grid, north up, NaN as no data. The counterpart of `write_field_ascii`.
+- `ComparisonResult.agreement()`: the map of 0 correct no, 1 false alarm,
+  2 miss, 3 hit. `plot_comparison` and `export_layers.ipynb` both use it, so
+  the codes are defined in one place.
+
 
 - `examples/validate_pioneer.ipynb` is shorter: no setup cell, a plain AUC
   table, and one line of reading after each result. It reads `probability_fields/`

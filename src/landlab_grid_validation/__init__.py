@@ -1,9 +1,9 @@
 """Validation utilities for mapped Landlab grid fields."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 from .core import ComparisonResult, compare_fields_on_grid, field_to_node_array
-from .export import write_field_ascii
+from .export import write_field_ascii, write_field_geotiff
 from .metrics import roc_auc, roc_auc_ci
 from .plot import grid_extent, plot_comparison
 from .readers import grid_from_raster, grid_transform, raster_to_node_field, vector_to_node_field
@@ -23,4 +23,5 @@ __all__ = [
     "raster_to_node_field",
     "vector_to_node_field",
     "write_field_ascii",
+    "write_field_geotiff",
 ]

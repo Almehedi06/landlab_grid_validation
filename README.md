@@ -50,7 +50,8 @@ The notebook's calls, in short:
 
 ```python
 from landlab_grid_validation import (FieldSpec, compare_fields_on_grid, grid_from_raster,
-                                     plot_comparison, raster_to_node_field, vector_to_node_field)
+                                     plot_comparison, raster_to_node_field, vector_to_node_field,
+                                     write_field_geotiff)
 
 grid, crs = grid_from_raster("P_Landslide.asc", crs="EPSG:6339")      # nodes at cell centres
 grid.add_field("P_Landslide", raster_to_node_field(grid, crs, "P_Landslide.asc",
@@ -64,6 +65,10 @@ result = compare_fields_on_grid(
 )
 print(result.metrics["roc_auc"])
 plot_comparison(grid, result)
+
+# keep the maps as files for QGIS
+write_field_geotiff(grid, crs, "observed.tif", observed)              # 1 = yes, 0 = no
+write_field_geotiff(grid, crs, "agreement.tif", result.agreement())   # 0 correct no, 1 false alarm, 2 miss, 3 hit
 ```
 
 ## What goes in

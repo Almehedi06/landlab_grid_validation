@@ -7,6 +7,31 @@ from pathlib import Path
 import numpy as np
 
 
+def write_field_geotiff(grid, crs, path: str | Path, field) -> Path:
+    """Write a node field, or node-length values, to a GeoTIFF on the grid.
+
+    North up, float32, NaN as no data, so it opens in QGIS on the right spot.
+    ``crs`` is required: a Landlab grid does not carry one.
+    """
+    import rasterio
+
+    from .readers import grid_transform
+
+    path = Path(path)
+    values = np.asarray(grid.at_node[field] if isinstance(field, str) else field, dtype="float32")
+    if values.size != grid.number_of_nodes:
+        raise ValueError(
+            f"field has {values.size} values but grid has {grid.number_of_nodes} nodes"
+        )
+    rows = values.reshape(grid.number_of_node_rows, grid.number_of_node_columns)[::-1]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with rasterio.open(path, "w", driver="GTiff", width=rows.shape[1], height=rows.shape[0],
+                       count=1, dtype="float32", crs=crs, transform=grid_transform(grid),
+                       nodata=np.nan, compress="deflate") as dst:
+        dst.write(rows, 1)
+    return path
+
+
 def write_field_ascii(grid, path: str | Path, field, *, name: str | None = None,
                       clobber: bool = True) -> Path:
     """Write a node field, or node-length values, to ESRI ASCII with Landlab's writer.

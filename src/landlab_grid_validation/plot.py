@@ -61,9 +61,7 @@ def plot_comparison(grid, result: ComparisonResult, *, points=None, marker_size=
 
     ax = axes[2]
     if result.predicted_yes is not None:
-        outcome = np.where(np.isnan(result.predicted_yes) | np.isnan(result.observed_yes),
-                           np.nan, result.predicted_yes + 2 * result.observed_yes)
-        show(ax, outcome, ListedColormap([c for _, c in OUTCOMES]),
+        show(ax, result.agreement(), ListedColormap([c for _, c in OUTCOMES]),
              BoundaryNorm(np.arange(-0.5, 4), 4), list(range(4)), [n for n, _ in OUTCOMES])
         cut = result.metrics.get("threshold")
         ax.set_title("Agreement" + (f" at threshold {cut:g}" if cut is not None else ""))
