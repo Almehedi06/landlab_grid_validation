@@ -6,8 +6,8 @@ type: software
 authors:
   - family-names: Al Mehedi
     given-names: Abdullah
-version: 1.1.0
-date-released: 2026-10-18
+version: 1.2.0
+date-released: 2026-10-19
 license: MIT
 repository-code: https://github.com/Almehedi06/landlab_grid_validation
 keywords:

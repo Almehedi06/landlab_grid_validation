@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.2.0 - 2026-10-19
+
+### Added
+
+- `plot_comparison(..., points=gdf, colour_by="column")`: the observations drawn
+  in one colour per value of that column (for example failure type), with the
+  count of each in a legend on the observed map. Missing values are
+  "unlabelled"; a column that does not exist is an error.
+- Feature-level scoring for point and polygon inventories:
+  `vector_to_feature_cells(grid, crs, features, tolerance_cells=k)` gives each
+  feature's cells, `feature_hits(result.predicted_yes, cells)` says whether
+  anything was flagged at each one, and `plot_comparison(..., feature_hits=hits)`
+  draws the flagged cells with each feature marked hit or miss, in place of the
+  cell-by-cell agreement map, which under-reads points.
+- `evaluate_features(grid, crs, layers, features, ...)`: AUC with a 95% interval
+  (resampling the features) for any number of layers, for all features and per
+  nested group (`group_by` columns), with the absence cells drawn by `Absences`
+  (keep and exclude masks, distance from the features, all or n at random,
+  stratified by a class raster). `Evaluation.write` saves metrics, ROC curves,
+  `roc.png`, the absences and a run record. `roc_curve`, `bootstrap_auc_interval`
+  and `feature_groups` are the pieces.
+- Rules as plain dicts: `rule_mask` and `mask_from_rules` turn rasters, a DEM's
+  slope (`slope_of`) and polygons into cell masks (`min`, `max`, `abs_min`,
+  `abs_max`, `values`, `finite`, `inside`, `buffer_cells`); `sample_absences`
+  draws the absence cells; `slope_degrees` is the slope.
+- `python -m landlab_grid_validation config.yaml`: the same evaluation from a
+  YAML config, for any site; unknown keys are errors.
+- `plot_roc(curves)`: ROC panels, built without pyplot so a notebook's backend is
+  never changed.
+- `evaluate_features` also reports the cost at a cutoff (`thresholds`, default 0.5,
+  and the Youden cutoff: confusion counts, precision, recall, f1, csi, precision as a
+  multiple of the base rate, share of the domain flagged), `tpr_at_fpr_<level>`,
+  `average_precision`, `brier`, `positives_at_zero` and `domain_above_zero`;
+  `threshold_scores` and `youden_threshold` are the pieces; `Evaluation.summary()`
+  prints the short version: AUC (95%), the optimal cutoff and the precision there.
+- `plot_sampling(...)` and `Evaluation.plot_sampling()`: the map of the domain,
+  positive, absence and excluded cells, with counts; `Evaluation.write` saves it
+  as `sampling_map.png`.
+- `chance_hit_rate(grid, predicted_yes, tolerance_cells)`: the hit rate a random
+  location gets under the feature rule; `plot_comparison(..., chance_hit_rate=)`
+  puts it in the title.
+- `compare_fields_on_grid(..., tolerance_cells=k)` for two continuous fields:
+  `mae_within_tolerance` and `rmse_within_tolerance`, matching each observed cell
+  with the closest predicted value in its block.
+- A continuous field against classes gets a box plot per class as its third map.
+- `io` extra now includes scipy and pyyaml.
+
 ## 1.1.0 - 2026-10-18
 
 ### Added

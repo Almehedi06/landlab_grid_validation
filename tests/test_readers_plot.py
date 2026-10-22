@@ -101,6 +101,43 @@ def test_text_classes_are_burned_through_codes():
     assert burned[0] == 1 and (burned.reshape(3, 3)[2] == 2).all()
 
 
+def test_feature_cells_match_the_burned_blocks_and_score_each_feature():
+    from landlab_grid_validation import feature_hits, vector_to_feature_cells
+    grid = RasterModelGrid((5, 5), xy_spacing=10.0, xy_of_lower_left=(5.0, 5.0))
+    pts = gpd.GeoDataFrame(geometry=[Point(25, 25), Point(5, 45), Point(900, 900)], crs=CRS)
+    with pytest.warns(UserWarning, match="1 of 3 features lie outside"):
+        cells = vector_to_feature_cells(grid, CRS, pts, tolerance_cells=1)
+    assert [c.size for c in cells] == [9, 4, 0]     # full block, block clipped at the corner, outside
+    union = np.zeros(25, bool)
+    union[np.concatenate(cells)] = True
+    with pytest.warns(UserWarning):
+        assert np.array_equal(union, vector_to_node_field(grid, CRS, pts, tolerance_cells=1) == 1)
+    predicted = np.full(25, np.nan)
+    predicted[cells[0][0]] = 1.0                     # one flagged cell in the first block
+    predicted[cells[1]] = 0.0
+    assert feature_hits(predicted, cells).tolist() == [True, False, False]
+    assert feature_hits(predicted, []).shape == (0,)
+
+
+def test_feature_level_panel_marks_each_point_hit_or_miss():
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    grid = RasterModelGrid((4, 4), xy_spacing=10.0)
+    rng = np.random.default_rng(1)
+    result = compare_fields_on_grid(
+        grid, rng.random(16), (rng.random(16) > 0.5).astype(float),
+        FieldSpec(name="P", kind="continuous", units="probability", threshold=0.5),
+        FieldSpec(name="mapped", kind="binary"))
+    pts = gpd.GeoDataFrame(geometry=[Point(5, 5), Point(25, 25)], crs=CRS)
+    fig = plot_comparison(grid, result, points=pts, feature_hits=[True, False])
+    assert fig.axes[2].get_title().endswith("50% of 2 features hit")
+    assert [t.get_text() for t in fig.axes[2].get_legend().get_texts()] == ["hit (1)", "miss (1)"]
+    with pytest.raises(ValueError, match="entries"):
+        plot_comparison(grid, result, points=pts, feature_hits=[True])
+    with pytest.raises(ValueError, match="needs points"):
+        plot_comparison(grid, result, feature_hits=[True, False])
+
+
 def test_colour_scales_follow_sign_and_ignore_zeros():
     from landlab_grid_validation.plot import _continuous_style
     depth = np.r_[np.zeros(95), np.linspace(0.5, 1.5, 5)]          # sparse erosion depth
@@ -133,3 +170,24 @@ def test_plot_comparison_draws_three_maps(kind):
     fig = plot_comparison(grid, result, points=(np.array([15.0]), np.array([15.0])))
     assert len(fig.axes) == 6                                  # three maps, three colour bars
     assert "cells compared" in fig.get_suptitle()
+
+
+def test_points_coloured_by_a_column_get_one_legend_entry_per_value():
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    grid = RasterModelGrid((4, 4), xy_spacing=10.0)
+    rng = np.random.default_rng(1)
+    result = compare_fields_on_grid(
+        grid, rng.random(16), (rng.random(16) > 0.5).astype(float),
+        FieldSpec(name="P", kind="continuous", units="probability", threshold=0.5),
+        FieldSpec(name="mapped", kind="binary"))
+    pts = gpd.GeoDataFrame({"kind": ["LS", "Runoff", "LS", None]},
+                           geometry=[Point(5, 5), Point(15, 15), Point(25, 25), Point(5, 25)], crs=CRS)
+    fig = plot_comparison(grid, result, points=pts, colour_by="kind")
+    legend = fig.axes[1].get_legend()                          # on the observed map
+    assert [t.get_text() for t in legend.get_texts()] == ["LS (2)", "Runoff (1)", "unlabelled (1)"]
+    assert fig.axes[0].get_legend() is None
+    with pytest.raises(ValueError, match="not a column"):
+        plot_comparison(grid, result, points=pts, colour_by="missing")
+    with pytest.raises(ValueError, match="not a column"):
+        plot_comparison(grid, result, points=(np.array([5.0]), np.array([5.0])), colour_by="kind")

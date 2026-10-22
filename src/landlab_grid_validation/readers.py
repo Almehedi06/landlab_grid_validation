@@ -171,6 +171,54 @@ def vector_to_node_field(grid, crs, features, *, value=1.0, codes=None, toleranc
     return burned[::-1].reshape(-1).copy()
 
 
+def vector_to_feature_cells(grid, crs, features, *, tolerance_cells=0, all_touched=True) -> list:
+    """The grid nodes of each feature: one integer array per feature, in the
+    features' order, holding the cells it burns (as ``vector_to_node_field``
+    burns them) grown by ``tolerance_cells``. A feature outside the grid gets an
+    empty array and is reported. Feeds ``feature_hits``: was anything predicted
+    at each mapped feature?
+    """
+    import geopandas as gpd
+    from affine import Affine
+    from rasterio.features import rasterize
+
+    gdf = features if isinstance(features, gpd.GeoDataFrame) else gpd.read_file(features)
+    if gdf.crs is None:
+        raise ValueError("features declare no CRS")
+    gdf = gdf.to_crs(crs)
+    transform = grid_transform(grid)
+    rows, cols = grid.number_of_node_rows, grid.number_of_node_columns
+    k = int(tolerance_cells)
+    out, missing = [], 0
+    for geom in gdf.geometry:
+        if geom is None or geom.is_empty:
+            out.append(np.empty(0, dtype=int))
+            missing += 1
+            continue
+        # a window of whole cells around the feature, grown by the tolerance, clipped to the grid
+        x0, y0, x1, y1 = geom.bounds
+        c0 = max(int(np.floor((x0 - transform.c) / grid.dx)) - k, 0)
+        c1 = min(int(np.floor((x1 - transform.c) / grid.dx)) + k + 1, cols)
+        r0 = max(int(np.floor((transform.f - y1) / grid.dy)) - k, 0)
+        r1 = min(int(np.floor((transform.f - y0) / grid.dy)) + k + 1, rows)
+        burned = np.zeros((max(r1 - r0, 0), max(c1 - c0, 0)), bool)
+        if burned.size:
+            burned = rasterize([(geom, 1)], out_shape=burned.shape, fill=0, all_touched=all_touched,
+                               transform=transform * Affine.translation(c0, r0), dtype="uint8") == 1
+            if k:
+                burned = _grow(burned, k)
+        rr, cc = np.nonzero(burned)
+        if rr.size == 0:
+            missing += 1
+        out.append(np.sort((rows - 1 - (rr + r0)) * cols + (cc + c0)))   # node order: row 0 = south
+    if missing == len(gdf):
+        raise ValueError("none of the features overlap the grid")
+    if missing:
+        warnings.warn(f"{missing} of {len(gdf)} features lie outside the grid and have no cells",
+                      stacklevel=2)
+    return out
+
+
 def _grow(mask: np.ndarray, k: int) -> np.ndarray:
     """Square dilation by k cells in every direction, without wrapping at the edges."""
     rows, cols = mask.shape

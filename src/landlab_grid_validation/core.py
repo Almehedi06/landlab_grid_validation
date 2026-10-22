@@ -135,10 +135,13 @@ def compare_fields_on_grid(
     probabilities must lie in [0, 1], binary fields may hold only 0 and 1, and
     categorical fields only their declared class codes.
 
-    ``tolerance_cells`` (yes/no comparisons only) adds recall and precision that
-    forgive offsets of up to that many cells: an observed yes counts as found if a
-    predicted yes lies within the (2k+1) x (2k+1) block around it, and the other
-    way round for precision. The exact-cell metrics are always kept.
+    ``tolerance_cells`` adds metrics that forgive offsets of up to that many cells.
+    For yes/no comparisons: recall and precision where an observed yes counts as
+    found if a predicted yes lies within the (2k+1) x (2k+1) block around it, and
+    the other way round for precision. For two continuous fields: MAE and RMSE
+    where each observed cell is matched with the closest predicted value in its
+    block, so a runout one cell off is not fully wrong. The exact-cell metrics are
+    always kept.
     """
     pred, n_pred = _prepare(grid, predicted, predicted_spec, origin)
     obs, n_obs = _prepare(grid, observed, observed_spec, origin)
@@ -180,11 +183,14 @@ def compare_fields_on_grid(
     )
 
     if tolerance_cells:
-        if result.predicted_yes is None:
-            raise ValueError("tolerance_cells applies to comparisons that reduce to yes/no")
-        result.metrics.update(
-            _within_tolerance(grid, result.predicted_yes, result.observed_yes, int(tolerance_cells))
-        )
+        if result.predicted_yes is not None:
+            result.metrics.update(
+                _within_tolerance(grid, result.predicted_yes, result.observed_yes, int(tolerance_cells))
+            )
+        elif comparison_type == "continuous_vs_continuous":
+            result.metrics.update(_continuous_within_tolerance(grid, pred, obs, valid, int(tolerance_cells)))
+        else:
+            raise ValueError("tolerance_cells applies to yes/no comparisons and to two continuous fields")
 
     if plot:
         from .plot import plot_comparison
@@ -209,6 +215,58 @@ def _within_tolerance(grid, predicted_yes, observed_yes, k: int) -> dict[str, fl
         "recall_within_tolerance": div(np.sum(o & _grow(p, k)), np.sum(o)),
         "precision_within_tolerance": div(np.sum(p & _grow(o, k)), np.sum(p)),
     }
+
+
+def _continuous_within_tolerance(grid, predicted, observed, valid, k: int) -> dict[str, float]:
+    """MAE and RMSE where every observed cell is matched with the predicted value
+    in its (2k+1) x (2k+1) block that comes closest to it."""
+    shape = (grid.number_of_node_rows, grid.number_of_node_columns)
+    p = np.where(valid, predicted, np.nan).reshape(shape)
+    o = np.where(valid, observed, np.nan).reshape(shape)
+    padded = np.pad(p, k, constant_values=np.nan)
+    rows, cols = shape
+    best = np.full(shape, np.inf)
+    for dr in range(2 * k + 1):
+        for dc in range(2 * k + 1):
+            best = np.fmin(best, np.abs(padded[dr:dr + rows, dc:dc + cols] - o))   # fmin ignores NaN
+    err = best.reshape(-1)[valid]
+    return {
+        "tolerance_cells": k,
+        "mae_within_tolerance": float(np.mean(err)),
+        "rmse_within_tolerance": float(np.sqrt(np.mean(err ** 2))),
+    }
+
+
+def chance_hit_rate(grid, predicted_yes, tolerance_cells: int = 0) -> float:
+    """The hit rate a feature placed at random would get: the share of compared
+    cells whose (2k+1) x (2k+1) block holds a predicted yes. Compare
+    ``feature_hits(...).mean()`` with this, never with the share of cells flagged:
+    a block catches a flagged cell far more often than one cell does."""
+    from .readers import _grow
+
+    yes = np.asarray(predicted_yes, dtype=float)
+    compared = np.isfinite(yes)
+    if not compared.any():
+        return np.nan
+    shape = (grid.number_of_node_rows, grid.number_of_node_columns)
+    flagged = (yes == 1).reshape(shape)
+    hit = _grow(flagged, int(tolerance_cells)) if tolerance_cells else flagged
+    return float(hit.reshape(-1)[compared].mean())
+
+
+def feature_hits(predicted_yes, feature_cells) -> np.ndarray:
+    """One True/False per mapped feature: was any of its cells predicted yes?
+
+    ``feature_cells`` comes from ``vector_to_feature_cells``: the cells of each
+    feature plus its tolerance. Cells outside the comparison (NaN) count as no,
+    and a feature with no cells on the grid is a miss. The mean is the
+    feature-level recall, the right score for a point or polygon inventory:
+    cell-level recall punishes a 3 x 3 block that a thin flagged channel only
+    crosses, although the feature was found.
+    """
+    yes = np.asarray(predicted_yes) == 1          # NaN compares False
+    return np.array([bool(yes[np.asarray(cells, dtype=int)].any()) if len(cells) else False
+                     for cells in feature_cells], dtype=bool)
 
 
 def _prepare(grid, values, spec: FieldSpec, origin) -> tuple[np.ndarray, int]:

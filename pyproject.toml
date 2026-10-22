@@ -15,9 +15,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-io = ["rasterio", "geopandas"]
+io = ["rasterio", "geopandas", "scipy", "pyyaml"]
 plot = ["matplotlib"]
-test = ["pytest", "rasterio", "geopandas", "matplotlib"]
+test = ["pytest", "rasterio", "geopandas", "scipy", "pyyaml", "matplotlib"]
 notebook = ["jupyterlab", "ipykernel", "pandas"]
 
 [tool.setuptools.dynamic]

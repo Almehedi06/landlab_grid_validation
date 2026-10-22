@@ -88,9 +88,9 @@ def test_tolerance_forgives_a_one_cell_offset():
     assert result.metrics["recall"] == 0.0
     assert result.metrics["recall_within_tolerance"] == 1.0
     assert result.metrics["precision_within_tolerance"] == 1.0
-    with pytest.raises(ValueError, match="yes/no"):
-        dz = FieldSpec(name="dz", kind="continuous", units="m")
-        compare_fields_on_grid(grid, predicted, observed, dz, dz, origin="lower", tolerance_cells=1)
+    dz = FieldSpec(name="dz", kind="continuous", units="m")
+    tolerant = compare_fields_on_grid(grid, predicted, observed, dz, dz, origin="lower", tolerance_cells=1)
+    assert tolerant.metrics["mae"] > 0 and tolerant.metrics["mae_within_tolerance"] == 0.0
 
 
 def test_auc_ties_share_their_mean_rank():
